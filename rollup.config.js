@@ -27,6 +27,9 @@ export default defineConfig([
       format: 'esm',
       sourcemap: true,
       banner,
+      globals: {
+        vue: 'vue',
+      },
     },
     {
       file: 'lib/marked.umd.js',
@@ -34,6 +37,9 @@ export default defineConfig([
       name: 'marked',
       sourcemap: true,
       banner,
+      globals: {
+        vue: 'vue',
+      },
     },
     {
       file: 'marked.min.js',
@@ -41,6 +47,9 @@ export default defineConfig([
       name: 'marked',
       sourcemap: false,
       banner,
+      globals: {
+        vue: 'vue',
+      },
       plugins: [terser({
         format: {
           comments: (node, comment) => {
@@ -57,9 +66,13 @@ export default defineConfig([
       name: 'marked',
       sourcemap: true,
       banner,
+      globals: {
+        vue: 'vue',
+      },
     }],
     plugins: [
       typescript(),
     ],
+    external: ['vue'],
   },
 ]);

@@ -4,6 +4,7 @@ import type { _Lexer } from './Lexer.ts';
 import type { _Renderer } from './Renderer.ts';
 import type { _Tokenizer } from './Tokenizer.ts';
 import type { _Hooks } from './Hooks.ts';
+import type { VNode } from 'vue';
 
 export interface TokenizerThis {
   lexer: _Lexer;
@@ -25,7 +26,7 @@ export interface RendererThis {
   parser: _Parser;
 }
 
-export type RendererExtensionFunction = (this: RendererThis, token: Tokens.Generic) => string | false | undefined;
+export type RendererExtensionFunction = (this: RendererThis, token: Tokens.Generic) => VNode | string | false | undefined;
 
 export interface RendererExtension {
   name: string;

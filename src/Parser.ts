@@ -1,8 +1,8 @@
 import { _Renderer } from './Renderer.ts';
-import { _TextRenderer } from './TextRenderer.ts';
 import { _defaults } from './defaults.ts';
-import type { MarkedToken, Token, Tokens } from './Tokens.ts';
+import type { MarkedToken, Token } from './Tokens.ts';
 import type { MarkedOptions } from './MarkedOptions.ts';
+import { h, isVNode, type VNode } from 'vue';
 
 /**
  * Parsing & Compiling
@@ -10,14 +10,12 @@ import type { MarkedOptions } from './MarkedOptions.ts';
 export class _Parser {
   options: MarkedOptions;
   renderer: _Renderer;
-  textRenderer: _TextRenderer;
   constructor(options?: MarkedOptions) {
     this.options = options || _defaults;
     this.options.renderer = this.options.renderer || new _Renderer();
     this.renderer = this.options.renderer;
     this.renderer.options = this.options;
     this.renderer.parser = this;
-    this.textRenderer = new _TextRenderer();
   }
 
   /**
@@ -39,86 +37,69 @@ export class _Parser {
   /**
    * Parse Loop
    */
-  parse(tokens: Token[], top = true): string {
-    let out = '';
+  parse(tokens: Token[], top = true): VNode[] {
+    const out: VNode[] = [];
 
-    for (let i = 0; i < tokens.length; i++) {
-      const anyToken = tokens[i];
-
-      // Run any renderer extensions
-      if (this.options.extensions?.renderers?.[anyToken.type]) {
-        const genericToken = anyToken as Tokens.Generic;
-        const ret = this.options.extensions.renderers[genericToken.type].call({ parser: this }, genericToken);
-        if (ret !== false || !['space', 'hr', 'heading', 'code', 'table', 'blockquote', 'list', 'html', 'paragraph', 'text'].includes(genericToken.type)) {
-          out += ret || '';
-          continue;
-        }
-      }
-
+    for (const anyToken of tokens) {
       const token = anyToken as MarkedToken;
-
       switch (token.type) {
         case 'space': {
-          out += this.renderer.space(token);
-          continue;
+          out.push(this.renderer.space(token));
+          break;
         }
         case 'hr': {
-          out += this.renderer.hr(token);
-          continue;
+          out.push(this.renderer.hr(token));
+          break;
         }
         case 'heading': {
-          out += this.renderer.heading(token);
-          continue;
+          out.push(this.renderer.heading(token));
+          break;
         }
         case 'code': {
-          out += this.renderer.code(token);
-          continue;
+          out.push(this.renderer.code(token));
+          break;
         }
         case 'table': {
-          out += this.renderer.table(token);
-          continue;
+          out.push(this.renderer.table(token));
+          break;
         }
         case 'blockquote': {
-          out += this.renderer.blockquote(token);
-          continue;
+          out.push(this.renderer.blockquote(token));
+          break;
         }
         case 'list': {
-          out += this.renderer.list(token);
-          continue;
+          out.push(this.renderer.list(token));
+          break;
         }
         case 'html': {
-          out += this.renderer.html(token);
-          continue;
+          out.push(this.renderer.html(token));
+          break;
         }
         case 'paragraph': {
-          out += this.renderer.paragraph(token);
-          continue;
+          out.push(this.renderer.paragraph(token));
+          break;
         }
         case 'text': {
-          let textToken = token;
-          let body = this.renderer.text(textToken);
-          while (i + 1 < tokens.length && tokens[i + 1].type === 'text') {
-            textToken = tokens[++i] as Tokens.Text;
-            body += '\n' + this.renderer.text(textToken);
-          }
-          if (top) {
-            out += this.renderer.paragraph({
-              type: 'paragraph',
-              raw: body,
-              text: body,
-              tokens: [{ type: 'text', raw: body, text: body, escaped: true }],
-            });
-          } else {
-            out += body;
-          }
-          continue;
+          out.push(this.renderer.text(token));
+          break;
         }
 
         default: {
-          const errMsg = 'Token with "' + token.type + '" type was not found.';
+          // Run any renderer extensions for generic tokens
+          if (this.options.extensions?.renderers?.[anyToken.type]) {
+            const ret = this.options.extensions.renderers[anyToken.type].call({ parser: this }, anyToken);
+            if (ret) {
+              if (isVNode(ret)) out.push(ret);
+              else out.push(h('span', { innerHTML: ret }));
+              break;
+            }
+          }
+
+          // if we didn't find anything to parse the token, return an error
+          const errMsg = 'Token with "' + anyToken.type + '" type was not found.';
           if (this.options.silent) {
             console.error(errMsg);
-            return '';
+            return [];
           } else {
             throw new Error(errMsg);
           }
@@ -132,75 +113,86 @@ export class _Parser {
   /**
    * Parse Inline Tokens
    */
-  parseInline(tokens: Token[], renderer: _Renderer | _TextRenderer = this.renderer): string {
-    let out = '';
+  parseInline(tokens: Token[], renderer: _Renderer = this.renderer): VNode[] {
+    const out: VNode[] = [];
 
-    for (let i = 0; i < tokens.length; i++) {
-      const anyToken = tokens[i];
-
-      // Run any renderer extensions
-      if (this.options.extensions?.renderers?.[anyToken.type]) {
-        const ret = this.options.extensions.renderers[anyToken.type].call({ parser: this }, anyToken);
-        if (ret !== false || !['escape', 'html', 'link', 'image', 'strong', 'em', 'codespan', 'br', 'del', 'text'].includes(anyToken.type)) {
-          out += ret || '';
-          continue;
-        }
-      }
-
+    for (const anyToken of tokens) {
       const token = anyToken as MarkedToken;
 
       switch (token.type) {
         case 'escape': {
-          out += renderer.text(token);
+          out.push(renderer.text(token));
           break;
         }
+
         case 'html': {
-          out += renderer.html(token);
+          out.push(renderer.html(token));
           break;
         }
+
         case 'link': {
-          out += renderer.link(token);
+          out.push(renderer.link(token));
           break;
         }
+
         case 'image': {
-          out += renderer.image(token);
+          out.push(renderer.image(token));
           break;
         }
+
         case 'strong': {
-          out += renderer.strong(token);
+          out.push(renderer.strong(token));
           break;
         }
+
         case 'em': {
-          out += renderer.em(token);
+          out.push(renderer.em(token));
           break;
         }
+
         case 'codespan': {
-          out += renderer.codespan(token);
+          out.push(renderer.codespan(token));
           break;
         }
+
         case 'br': {
-          out += renderer.br(token);
+          out.push(renderer.br(token));
           break;
         }
+
         case 'del': {
-          out += renderer.del(token);
+          out.push(renderer.del(token));
           break;
         }
+
         case 'text': {
-          out += renderer.text(token);
+          out.push(renderer.text(token));
           break;
         }
+
         default: {
+          // Run any renderer extensions
+          if (this.options.extensions?.renderers?.[anyToken.type]) {
+            const ret = this.options.extensions.renderers[anyToken.type].call({ parser: this }, anyToken);
+            if (ret) {
+              if (isVNode(ret)) out.push(ret);
+              else out.push(h('span', { innerHTML: ret }));
+              break;
+            }
+          }
+
+          // if we didn't find anything to parse the token, return an error
           const errMsg = 'Token with "' + token.type + '" type was not found.';
           if (this.options.silent) {
             console.error(errMsg);
-            return '';
+            return [];
           } else {
             throw new Error(errMsg);
           }
         }
       }
     }
+
     return out;
   }
 }

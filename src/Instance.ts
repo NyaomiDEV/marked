@@ -8,11 +8,12 @@ import { _TextRenderer } from './TextRenderer.ts';
 import { escape } from './helpers.ts';
 import type { MarkedExtension, MarkedOptions } from './MarkedOptions.ts';
 import type { Token, Tokens, TokensList } from './Tokens.ts';
+import type { VNode } from 'vue';
 
 export type MaybePromise = void | Promise<void>;
 
 type UnknownFunction = (...args: unknown[]) => unknown;
-type GenericRendererFunction = (...args: unknown[]) => string | false;
+type GenericRendererFunction = (...args: unknown[]) => VNode | false;
 
 export class Marked {
   defaults = _getDefaults();
@@ -157,7 +158,7 @@ export class Marked {
             if (ret === false) {
               ret = prevRenderer.apply(renderer, args);
             }
-            return ret || '';
+            return ret as VNode;
           };
         }
         opts.renderer = renderer;
@@ -263,9 +264,9 @@ export class Marked {
 
   private parseMarkdown(blockType: boolean) {
     type overloadedParse = {
-      (src: string, options: MarkedOptions & { async: true }): Promise<string>;
-      (src: string, options: MarkedOptions & { async: false }): string;
-      (src: string, options?: MarkedOptions | null): string | Promise<string>;
+      (src: string, options: MarkedOptions & { async: true }): Promise<VNode[]>;
+      (src: string, options: MarkedOptions & { async: false }): VNode[];
+      (src: string, options?: MarkedOptions | null): VNode[] | Promise<VNode[]>;
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -303,7 +304,7 @@ export class Marked {
           .then(tokens => opt.hooks ? opt.hooks.processAllTokens(tokens) : tokens)
           .then(tokens => opt.walkTokens ? Promise.all(this.walkTokens(tokens, opt.walkTokens)).then(() => tokens) : tokens)
           .then(tokens => parser(tokens, opt))
-          .then(html => opt.hooks ? opt.hooks.postprocess(html) : html)
+          .then(vnodes => opt.hooks ? opt.hooks.postprocess(vnodes) : vnodes)
           .catch(throwError);
       }
 
@@ -318,11 +319,11 @@ export class Marked {
         if (opt.walkTokens) {
           this.walkTokens(tokens, opt.walkTokens);
         }
-        let html = parser(tokens, opt);
+        let vnodes = parser(tokens, opt);
         if (opt.hooks) {
-          html = opt.hooks.postprocess(html) as string;
+          vnodes = opt.hooks.postprocess(vnodes);
         }
-        return html;
+        return vnodes;
       } catch (e) {
         return throwError(e as Error);
       }

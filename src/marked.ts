@@ -13,6 +13,7 @@ import {
 import type { MarkedExtension, MarkedOptions } from './MarkedOptions.ts';
 import type { Token, TokensList } from './Tokens.ts';
 import type { MaybePromise } from './Instance.ts';
+import type { VNode } from 'vue';
 
 const markedInstance = new Marked();
 
@@ -23,7 +24,7 @@ const markedInstance = new Marked();
  * @param options Hash of options, having async: true
  * @return Promise of string of compiled HTML
  */
-export function marked(src: string, options: MarkedOptions & { async: true }): Promise<string>;
+export function marked(src: string, options: MarkedOptions & { async: true }): Promise<VNode[]>;
 
 /**
  * Compiles markdown to HTML.
@@ -32,10 +33,10 @@ export function marked(src: string, options: MarkedOptions & { async: true }): P
  * @param options Optional hash of options
  * @return String of compiled HTML. Will be a Promise of string if async is set to true by any extensions.
  */
-export function marked(src: string, options: MarkedOptions & { async: false }): string;
-export function marked(src: string, options: MarkedOptions & { async: true }): Promise<string>;
-export function marked(src: string, options?: MarkedOptions | null): string | Promise<string>;
-export function marked(src: string, opt?: MarkedOptions | null): string | Promise<string> {
+export function marked(src: string, options: MarkedOptions & { async: false }): VNode[];
+export function marked(src: string, options: MarkedOptions & { async: true }): Promise<VNode[]>;
+export function marked(src: string, options?: MarkedOptions | null): VNode[] | Promise<VNode[]>;
+export function marked(src: string, opt?: MarkedOptions | null): VNode[] | Promise<VNode[]> {
   return markedInstance.parse(src, opt);
 }
 

@@ -7,6 +7,7 @@ import { other } from './rules.ts';
 import type { MarkedOptions } from './MarkedOptions.ts';
 import type { Tokens } from './Tokens.ts';
 import type { _Parser } from './Parser.ts';
+import { Fragment, h, Text, type VNode } from 'vue';
 
 /**
  * Renderer
@@ -18,199 +19,130 @@ export class _Renderer {
     this.options = options || _defaults;
   }
 
-  space(token: Tokens.Space): string {
-    return '';
+  space(token: Tokens.Space): VNode {
+    return h(Text, '');
   }
 
-  code({ text, lang, escaped }: Tokens.Code): string {
+  code({ text, lang, escaped }: Tokens.Code): VNode {
     const langString = (lang || '').match(other.notSpaceStart)?.[0];
 
     const code = text.replace(other.endingNewline, '') + '\n';
 
     if (!langString) {
-      return '<pre><code>'
-        + (escaped ? code : escape(code, true))
-        + '</code></pre>\n';
+      return h('pre', {},
+        h('code', { innerHTML: escaped ? code : escape(code, true) }),
+      );
     }
 
-    return '<pre><code class="language-'
-      + escape(langString)
-      + '">'
-      + (escaped ? code : escape(code, true))
-      + '</code></pre>\n';
+    return h('pre', { class: 'code--' + escape(langString, true) },
+      h('code', {
+        class: 'code--' + escape(langString, true),
+        innerHTML: escaped ? code : escape(code, true),
+      }),
+    );
   }
 
-  blockquote({ tokens }: Tokens.Blockquote): string {
+  blockquote({ tokens }: Tokens.Blockquote): VNode {
     const body = this.parser.parse(tokens);
-    return `<blockquote>\n${body}</blockquote>\n`;
+    return h('blockquote', {}, body);
   }
 
-  html({ text }: Tokens.HTML | Tokens.Tag) : string {
-    return text;
+  html({ text }: Tokens.HTML | Tokens.Tag) : VNode {
+    return h('span', { innerHTML: text });
   }
 
-  heading({ tokens, depth }: Tokens.Heading): string {
-    return `<h${depth}>${this.parser.parseInline(tokens)}</h${depth}>\n`;
+  heading({ tokens, depth }: Tokens.Heading): VNode {
+    return h(`h${depth}`, this.parser.parseInline(tokens));
   }
 
-  hr(token: Tokens.Hr): string {
-    return '<hr>\n';
+  hr(token: Tokens.Hr): VNode {
+    return h('hr');
   }
 
-  list(token: Tokens.List): string {
+  list(token: Tokens.List): VNode {
     const ordered = token.ordered;
     const start = token.start;
 
-    let body = '';
-    for (let j = 0; j < token.items.length; j++) {
-      const item = token.items[j];
-      body += this.listitem(item);
-    }
-
     const type = ordered ? 'ol' : 'ul';
-    const startAttr = (ordered && start !== 1) ? (' start="' + start + '"') : '';
-    return '<' + type + startAttr + '>\n' + body + '</' + type + '>\n';
+    return h(type, { start: ordered && start !== 1 ? start : undefined }, token.items.map(x => this.listitem(x)));
   }
 
-  listitem(item: Tokens.ListItem): string {
-    let itemBody = '';
-    if (item.task) {
-      const checkbox = this.checkbox({ checked: !!item.checked });
-      if (item.loose) {
-        if (item.tokens[0]?.type === 'paragraph') {
-          item.tokens[0].text = checkbox + ' ' + item.tokens[0].text;
-          if (item.tokens[0].tokens && item.tokens[0].tokens.length > 0 && item.tokens[0].tokens[0].type === 'text') {
-            item.tokens[0].tokens[0].text = checkbox + ' ' + escape(item.tokens[0].tokens[0].text);
-            item.tokens[0].tokens[0].escaped = true;
-          }
-        } else {
-          item.tokens.unshift({
-            type: 'text',
-            raw: checkbox + ' ',
-            text: checkbox + ' ',
-            escaped: true,
-          });
-        }
-      } else {
-        itemBody += checkbox + ' ';
-      }
-    }
-
-    itemBody += this.parser.parse(item.tokens, !!item.loose);
-
-    return `<li>${itemBody}</li>\n`;
+  listitem(item: Tokens.ListItem): VNode {
+    return h('li', this.parser.parse(item.tokens, !!item.loose));
   }
 
-  checkbox({ checked }: Tokens.Checkbox): string {
-    return '<input '
-      + (checked ? 'checked="" ' : '')
-      + 'disabled="" type="checkbox">';
+  checkbox({ checked }: Tokens.Checkbox): VNode {
+    return h('input', { type: 'checkbox', checked });
   }
 
-  paragraph({ tokens }: Tokens.Paragraph): string {
-    return `<p>${this.parser.parseInline(tokens)}</p>\n`;
+  paragraph({ tokens }: Tokens.Paragraph): VNode {
+    return h('p', this.parser.parseInline(tokens));
   }
 
-  table(token: Tokens.Table): string {
-    let header = '';
+  table(token: Tokens.Table): VNode {
+    const header = this.tablerow(token.header.map(x => this.tablecell(x)));
+    const body = token.rows.map(row =>
+      this.tablerow(row.map(cell => this.tablecell(cell))),
+    );
 
-    // header
-    let cell = '';
-    for (let j = 0; j < token.header.length; j++) {
-      cell += this.tablecell(token.header[j]);
-    }
-    header += this.tablerow({ text: cell });
-
-    let body = '';
-    for (let j = 0; j < token.rows.length; j++) {
-      const row = token.rows[j];
-
-      cell = '';
-      for (let k = 0; k < row.length; k++) {
-        cell += this.tablecell(row[k]);
-      }
-
-      body += this.tablerow({ text: cell });
-    }
-    if (body) body = `<tbody>${body}</tbody>`;
-
-    return '<table>\n'
-      + '<thead>\n'
-      + header
-      + '</thead>\n'
-      + body
-      + '</table>\n';
+    return h('table', {}, [header, body]);
   }
 
-  tablerow({ text }: Tokens.TableRow): string {
-    return `<tr>\n${text}</tr>\n`;
+  tablerow(cells: VNode[]): VNode {
+    return h('tr', cells);
   }
 
-  tablecell(token: Tokens.TableCell): string {
-    const content = this.parser.parseInline(token.tokens);
+  tablecell(token: Tokens.TableCell): VNode {
     const type = token.header ? 'th' : 'td';
-    const tag = token.align
-      ? `<${type} align="${token.align}">`
-      : `<${type}>`;
-    return tag + content + `</${type}>\n`;
+    return h(type, { align: token.align }, this.parser.parseInline(token.tokens));
   }
 
   /**
    * span level renderer
    */
-  strong({ tokens }: Tokens.Strong): string {
-    return `<strong>${this.parser.parseInline(tokens)}</strong>`;
+  strong({ tokens }: Tokens.Strong): VNode {
+    return h('strong', this.parser.parseInline(tokens));
   }
 
-  em({ tokens }: Tokens.Em): string {
-    return `<em>${this.parser.parseInline(tokens)}</em>`;
+  em({ tokens }: Tokens.Em): VNode {
+    return h('em', this.parser.parseInline(tokens));
   }
 
-  codespan({ text }: Tokens.Codespan): string {
-    return `<code>${escape(text, true)}</code>`;
+  codespan({ text }: Tokens.Codespan): VNode {
+    return h('code', text);
   }
 
-  br(token: Tokens.Br): string {
-    return '<br>';
+  br(token: Tokens.Br): VNode {
+    return h('br');
   }
 
-  del({ tokens }: Tokens.Del): string {
-    return `<del>${this.parser.parseInline(tokens)}</del>`;
+  del({ tokens }: Tokens.Del): VNode {
+    return h('del', this.parser.parseInline(tokens));
   }
 
-  link({ href, title, tokens }: Tokens.Link): string {
-    const text = this.parser.parseInline(tokens);
+  link({ href, title, tokens }: Tokens.Link): VNode {
+    const inlineParsed = this.parser.parseInline(tokens);
     const cleanHref = cleanUrl(href);
     if (cleanHref === null) {
-      return text;
+      return h(Fragment, inlineParsed);
     }
     href = cleanHref;
-    let out = '<a href="' + href + '"';
-    if (title) {
-      out += ' title="' + (escape(title)) + '"';
-    }
-    out += '>' + text + '</a>';
-    return out;
+    return h('a', { href, title }, inlineParsed);
   }
 
-  image({ href, title, text }: Tokens.Image): string {
+  image({ href, title, text }: Tokens.Image): VNode {
     const cleanHref = cleanUrl(href);
     if (cleanHref === null) {
-      return escape(text);
+      return h(Text, text);
     }
     href = cleanHref;
 
-    let out = `<img src="${href}" alt="${text}"`;
-    if (title) {
-      out += ` title="${escape(title)}"`;
-    }
-    out += '>';
-    return out;
+    return h('img', { src: href, alt: text, title });
   }
 
-  text(token: Tokens.Text | Tokens.Escape) : string {
+  text(token: Tokens.Text | Tokens.Escape): VNode {
     return 'tokens' in token && token.tokens
-      ? this.parser.parseInline(token.tokens)
-      : ('escaped' in token && token.escaped ? token.text : escape(token.text));
+      ? h(Fragment, this.parser.parseInline(token.tokens))
+      : h(Text, token.text);
   }
 }
